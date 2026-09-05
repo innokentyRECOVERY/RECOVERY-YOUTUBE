@@ -1,20 +1,21 @@
 # RECOVERY YOUTUBE
 
-Обход блокировки YouTube через VLESS-подписку (split-tunnel: через VPN идут только сайты YouTube, остальной интернет не затрагивается).
+Обход блокировки YouTube и Telegram через VLESS-подписку (split-tunnel: через VPN идут только сайты нужного сервиса, остальной интернет не затрагивается).
 
-Unblock YouTube via VLESS subscription (split-tunnel: only YouTube traffic goes through VPN, the rest of the Internet is unaffected).
+Unblock YouTube and Telegram via VLESS subscription (split-tunnel: only the chosen service's traffic goes through VPN, the rest of the Internet is unaffected).
 
 ## Быстрый старт (Windows)
 
 1. Скачайте `RECOVERY_YOUTUBE.exe` из [Releases](https://github.com/innokentyRECOVERY/RECOVERY-YOUTUBE/releases).
-2. Запустите его и нажмите «ЗАПУСТИТЬ ОБХОД».
+2. Запустите его, выберите вкладку вверху («ОБХОД YOUTUBE» или «ОБХОД TELEGRAM») и нажмите «ЗАПУСТИТЬ ОБХОД».
 3. При первом запуске автоматически скачается `xray-core` (нужен доступ к GitHub).
-4. Откройте YouTube — он будет работать.
+4. Откройте YouTube или `https://web.telegram.org/` (Telegram Desktop) — будет работать.
 
 ## Что делает программа
 
+- Две вкладки: «ОБХОД YOUTUBE» и «ОБХОД TELEGRAM».
 - Подключается к серверу Англия из VLESS-подписки.
-- Split-tunnel: только домены YouTube (`youtube.com`, `googlevideo.com`, `ytimg.com`, `youtu.be` и др.) идут через VPN, весь остальной трафик — напрямую.
+- Split-tunnel: через VPN идут только домены выбранного сервиса — YouTube (`youtube.com`, `googlevideo.com`, `ytimg.com`, `youtu.be` и др.) либо Telegram (`telegram.org`, `web.telegram.org`, `t.me`, `cdn.telegram.org` и др.), весь остальной трафик — напрямую.
 - Показывает реальную скорость трафика (⬆ отдаёт / ⬇ получает).
 - Лимит сессии 2 часа с автоотключением, повторный запуск — вручную.
 - Поддержка смены кода подписки без перезапуска.
@@ -39,6 +40,7 @@ Unblock YouTube via VLESS subscription (split-tunnel: only YouTube traffic goes 
 
 | Версия | Что изменилось |
 |--------|----------------|
+| **v1.0.2.0** | Добавлена поддержка Telegram: две вкладки вверху окна — «ОБХОД YOUTUBE» и «ОБХОД TELEGRAM». Через VPN идут домены Telegram (`telegram.org`, `web.telegram.org`, `t.me`, `cdn.telegram.org`) — работает и в браузере (`web.telegram.org`), и в Telegram Desktop. Сервер и подписка те же. |
 | **v1.0.1.0** | Кнопка «📁 Выбрать папку для xray» стала растягиваться по длине текста — надпись больше не обрезается. |
 | **v1.0.0.9** | Защита от повтора: теперь обнаруживается уже запущенный экземпляр любой версии (включая старые сборки без mutex, у которых окно может быть свёрнуто в трей) — новый запуск поднимает существующее окно и не создаёт второе. |
 | **v1.0.0.8** | Окно выше (560×650), кнопки и отступы уплотнены — поле кода подписки и кнопка «ПРИМЕНИТЬ КОД» больше не обрезаются. Код применяется по клавише Enter. |
