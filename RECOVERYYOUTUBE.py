@@ -121,9 +121,36 @@ class RecoveryYouTubeApp:
 
     def pick_work_dir(self):
         from tkinter import filedialog
+        import winreg
         init = self.work_dir if os.path.isdir(self.work_dir) else APP_DIR
-        chosen = filedialog.askdirectory(
-            title="Выберите папку для xray-core и настроек", initialdir=init)
+        old_hidden = None
+        try:
+            adv = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                0, winreg.KEY_READ | winreg.KEY_SET_VALUE)
+            try:
+                old_hidden, _ = winreg.QueryValueEx(adv, "Hidden")
+            except OSError:
+                old_hidden = None
+            winreg.SetValueEx(adv, "Hidden", 0, winreg.REG_DWORD, 1)
+            winreg.CloseKey(adv)
+        except Exception:
+            pass
+        try:
+            chosen = filedialog.askdirectory(
+                title="Выберите папку для xray-core и настроек", initialdir=init)
+        finally:
+            if old_hidden is not None:
+                try:
+                    adv = winreg.OpenKey(
+                        winreg.HKEY_CURRENT_USER,
+                        r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                        0, winreg.KEY_SET_VALUE)
+                    winreg.SetValueEx(adv, "Hidden", 0, winreg.REG_DWORD, old_hidden)
+                    winreg.CloseKey(adv)
+                except Exception:
+                    pass
         if chosen:
             self.work_dir = os.path.normpath(chosen)
             self.save_work_dir()
