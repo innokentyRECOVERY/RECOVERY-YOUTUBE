@@ -27,12 +27,7 @@ Unblock YouTube via VLESS subscription (split-tunnel: only YouTube traffic goes 
 
 ## Сборка из исходников
 
-```
-pip install pyinstaller
-pyinstaller --onefile --windowed --name RECOVERY_YOUTUBE RECOVERYYOUTUBE.py
-```
-
-В каждом релизе публикуются **и исходный код, и собранный exe** — проверяйте, сравнивайте и собирайте сами.
+Исходный код не публикуется.
 
 ## Важно
 
