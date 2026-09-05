@@ -4,6 +4,7 @@
 # Split-tunnel: ТОЛЬКО youtube.com идут через VPN, остальное напрямую
 # =====================================================================
 import ctypes
+import base64
 import json
 import io
 import os
@@ -22,6 +23,7 @@ from tkinter import messagebox
 try:
     import pystray
     import PIL.Image as PILImage
+    from PIL import ImageTk as PILImageTk
     TRAY_AVAILABLE = True
 except Exception:
     TRAY_AVAILABLE = False
@@ -56,6 +58,14 @@ YT_DOMAINS = [
 INTERNET_SETTINGS_KEY = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
 
 SINGLE_INSTANCE_MUTEX = "Global\\RECOVERY_YOUTUBE_SINGLE_INSTANCE"
+
+# Встроенная иконка приложения (PNG 64x64, base64) — для окна и системного трея
+ICON_B64 = (
+    "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"
+)
+
+APP_TRAY_ICON_BYTES = base64.b64decode(ICON_B64)
 
 
 def acquire_single_instance():
@@ -98,7 +108,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.6"
+    VERSION = "1.0.0.7"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -133,6 +143,7 @@ class RecoveryYouTubeApp:
         self._exit_when_disconnected = False
         self.build_ui()
         self.center_window()
+        self.set_window_icon()
         self.setup_tray()
 
     def center_window(self):
@@ -145,16 +156,21 @@ class RecoveryYouTubeApp:
     # ---------------- системный трей ----------------
 
     def tray_image(self):
+        # встроенная иконка всегда доступна (ничего не читается с диска)
         try:
-            ico = os.path.join(APP_DIR, "app_icon.ico")
-            if not os.path.exists(ico):
-                ico = os.path.join(APP_DATA_DIR, "app_icon.ico")
-            if os.path.exists(ico):
-                return PILImage.open(ico).convert("RGBA").resize((64, 64))
+            return PILImage.open(io.BytesIO(APP_TRAY_ICON_BYTES)).convert("RGBA").resize((64, 64))
+        except Exception:
+            return PILImage.new("RGBA", (64, 64), (26, 26, 46, 255))
+
+    def set_window_icon(self):
+        # убирает стандартную иконку Python/tk в панели задач
+        try:
+            img = PILImage.open(io.BytesIO(APP_TRAY_ICON_BYTES)).convert("RGBA").resize((64, 64))
+            photo = PILImageTk.PhotoImage(img)
+            self.root.iconphoto(True, photo)
+            self._window_icon = photo  # не даём GC удалить фото
         except Exception:
             pass
-        img = PILImage.new("RGBA", (64, 64), (26, 26, 46, 255))
-        return img
 
     def setup_tray(self):
         if not TRAY_AVAILABLE:
