@@ -27,9 +27,9 @@ if getattr(sys, "frozen", False):
     APP_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
-XRAY_DIR = os.path.join(APP_DIR, "xray")
-XRAY_EXE = os.path.join(XRAY_DIR, "xray.exe")
-CONFIG_PATH = os.path.join(APP_DIR, "xray_config.json")
+SETTINGS_PATH = os.path.join(APP_DIR, "settings.json")
+WORK_DIR_KEY = "work_dir"
+DEFAULT_WORK_DIR = APP_DIR
 
 PROXY_HOST = "127.0.0.1"
 PROXY_HTTP_PORT = 10809
@@ -77,16 +77,58 @@ class RecoveryYouTubeApp:
         self.keepalive = threading.Event()
         self.keepalive.clear()
         self.session_seconds = 2 * 60 * 60  # лимит одной сессии: 2 часа
+        self.folder_text = tk.StringVar(value="")
+
+        self.work_dir = self.load_work_dir()
+        self.apply_work_dir()
 
         self.build_ui()
         self.center_window()
 
     def center_window(self):
         self.root.update_idletasks()
-        w, h = 520, 470
+        w, h = 520, 520
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+    # ---------------- работа с папкой xray ----------------
+
+    def load_work_dir(self):
+        try:
+            if os.path.exists(SETTINGS_PATH):
+                with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                d = data.get(WORK_DIR_KEY, "")
+                if d and os.path.isdir(d):
+                    return d
+        except Exception:
+            pass
+        return DEFAULT_WORK_DIR
+
+    def save_work_dir(self):
+        try:
+            with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+                json.dump({WORK_DIR_KEY: self.work_dir}, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def apply_work_dir(self):
+        self.XRAY_DIR = self.work_dir
+        self.XRAY_EXE = os.path.join(self.work_dir, "xray.exe")
+        self.CONFIG_PATH = os.path.join(self.work_dir, "xray_config.json")
+        self.folder_text.set(self.work_dir)
+
+    def pick_work_dir(self):
+        from tkinter import filedialog
+        init = self.work_dir if os.path.isdir(self.work_dir) else APP_DIR
+        chosen = filedialog.askdirectory(
+            title="Выберите папку для xray-core и настроек", initialdir=init)
+        if chosen:
+            self.work_dir = os.path.normpath(chosen)
+            self.save_work_dir()
+            self.apply_work_dir()
+            self.set_status(f"Папка загрузок: {self.work_dir}")
 
     def build_ui(self):
         title = tk.Label(
@@ -147,6 +189,22 @@ class RecoveryYouTubeApp:
             font=("Consolas", 13, "bold"), fg="#ff7f50", bg="#1a1a2e"
         )
         timer_lbl.pack(pady=(4, 4))
+
+        self.folder_frame = tk.Frame(self.root, bg="#1a1a2e")
+        self.folder_frame.pack(pady=(6, 2))
+        folder_lbl = tk.Label(
+            self.root, textvariable=self.folder_text,
+            font=("Arial", 8), fg="#8a8aa0", bg="#1a1a2e", wraplength=470
+        )
+        folder_lbl.pack()
+        folder_btn = tk.Button(
+            self.root, text="📁 Выбрать папку для xray",
+            command=self.pick_work_dir,
+            font=("Arial", 10, "bold"), bg="#533483", fg="white",
+            activebackground="#6f42c1", activeforeground="white",
+            width=20, pady=2, cursor="hand2"
+        )
+        folder_btn.pack(pady=(3, 4))
 
         self.code_frame = tk.Frame(self.root, bg="#1a1a2e")
         self.code_frame.pack(pady=2)
@@ -400,19 +458,19 @@ class RecoveryYouTubeApp:
     # ---------------- xray management ----------------
 
     def download_xray(self):
-        os.makedirs(XRAY_DIR, exist_ok=True)
+        os.makedirs(self.XRAY_DIR, exist_ok=True)
         self.set_status("Скачивание xray-core...")
-        zip_path = os.path.join(XRAY_DIR, "xray.zip")
+        zip_path = os.path.join(self.XRAY_DIR, "xray.zip")
         urllib.request.urlretrieve(XRAY_RELEASE_URL, zip_path)
         with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(XRAY_DIR)
+            z.extractall(self.XRAY_DIR)
         os.remove(zip_path)
-        if not os.path.exists(XRAY_EXE):
+        if not os.path.exists(self.XRAY_EXE):
             raise RuntimeError("xray.exe не найден после распаковки")
 
     def run_xray(self):
         self.xray_proc = subprocess.Popen(
-            [XRAY_EXE, "run", "-c", CONFIG_PATH],
+            [self.XRAY_EXE, "run", "-c", self.CONFIG_PATH],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW,
@@ -454,7 +512,7 @@ class RecoveryYouTubeApp:
 
     def _start_worker(self):
         try:
-            if not os.path.exists(XRAY_EXE):
+            if not os.path.exists(self.XRAY_EXE):
                 self.download_xray()
 
             self.set_status("Получение подписки...")
@@ -466,7 +524,7 @@ class RecoveryYouTubeApp:
 
             outbound = self.build_outbound(england)
             config = self.generate_config(outbound)
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            with open(self.CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
 
             if self.xray_alive():
@@ -618,7 +676,7 @@ class RecoveryYouTubeApp:
         # Xray API общается по gRPC — используем встроенную CLI-команду xray api
         try:
             out = subprocess.run(
-                [XRAY_EXE, "api", "statsquery", "--server=127.0.0.1:10086"],
+                [self.XRAY_EXE, "api", "statsquery", "--server=127.0.0.1:10086"],
                 capture_output=True, text=True, timeout=5,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
