@@ -1,0 +1,13 @@
+# исходники
+*.pyc
+__pycache__/
+
+# xray — скачивается автоматически
+xray/
+xray_config.json
+xray.zip
+
+# временное
+build/
+dist/
+*.spec
