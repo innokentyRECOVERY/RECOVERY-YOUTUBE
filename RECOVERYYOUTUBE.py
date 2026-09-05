@@ -66,7 +66,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.3"
+    VERSION = "1.0.0.4"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -96,6 +96,7 @@ class RecoveryYouTubeApp:
 
         self.tray_icon = None
         self._exiting = False
+        self._exit_when_disconnected = False
         self.build_ui()
         self.center_window()
         self.setup_tray()
@@ -760,6 +761,7 @@ class RecoveryYouTubeApp:
         self.run_btn.config(state="normal")
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Не удалось восстановить соединение. Нажмите «ЗАПУСТИТЬ ОБХОД» заново")
+        self.maybe_exit_after_disconnect()
 
     def _subscription_expired(self):
         self.connected = False
@@ -773,6 +775,7 @@ class RecoveryYouTubeApp:
         self.apply_btn.config(state="normal")
         self.timer_text.set("Подписка истекла — жду новый код")
         self.set_status("Подписка завершена. Вставьте новый код ниже и нажмите «ПРИМЕНИТЬ КОД»")
+        self.maybe_exit_after_disconnect()
 
     def apply_new_code(self):
         code = self.code_entry.get().strip()
@@ -912,17 +915,36 @@ class RecoveryYouTubeApp:
         self.run_btn.config(state="normal")
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Соединение остановлено")
+        self.maybe_exit_after_disconnect()
 
     def _fail(self, msg):
         self.working = False
         self.run_btn.config(state="normal")
         self.set_status("Ошибка: " + msg)
-        messagebox.showerror("RECOVERY YOUTUBE", f"Ошибка:\n{msg}")
+        self.maybe_exit_after_disconnect()
+        if not self._exiting:
+            messagebox.showerror("RECOVERY YOUTUBE", f"Ошибка:\n{msg}")
 
     def on_close(self):
-        # кнопка «закрыть» (X) сворачивает приложение в системный трей —
-        # обход продолжает работать. Полный выход — только через меню трея «Выход».
-        self.hide_to_tray()
+        # кнопка «закрыть» (X):
+        #  - если соединение активно — сворачиваем в трей и отслеживаем:
+        #    как только соединение отключится, приложение закроется само;
+        #  - если соединения нет — полностью закрываем приложение.
+        if self.connected or self.working:
+            self._exit_when_disconnected = True
+            self.hide_to_tray()
+        else:
+            self._exit_when_disconnected = False
+            self.full_exit()
+
+    def maybe_exit_after_disconnect(self):
+        # вызывается после остановки соединения: если пользователь закрыл
+        # окно (X) и ждёт отключения в трее — теперь выходим полностью
+        if self._exiting:
+            return
+        if self._exit_when_disconnected:
+            self._exit_when_disconnected = False
+            self.full_exit()
 
     def run(self):
         self.ensure_tray_running()
