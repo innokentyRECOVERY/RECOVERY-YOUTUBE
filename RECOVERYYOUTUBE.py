@@ -55,6 +55,38 @@ YT_DOMAINS = [
 
 INTERNET_SETTINGS_KEY = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
 
+SINGLE_INSTANCE_MUTEX = "Global\\RECOVERY_YOUTUBE_SINGLE_INSTANCE"
+
+
+def acquire_single_instance():
+    # именованный mutex: гарантирует, что работает только один экземпляр.
+    # Возвращает handle, если mutex создан, иначе None (уже запущен).
+    try:
+        handle = ctypes.windll.kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX)
+        if not handle:
+            return None
+        if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return None
+        return handle
+    except Exception:
+        return None
+
+
+def raise_existing_window():
+    # вместо нового окна поднимаем уже запущенный экземпляр (в т.ч. из трея
+    # или с другого рабочего стола)
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(
+            None, "RECOVERY YOUTUBE v" + RecoveryYouTubeApp.VERSION)
+        if not hwnd:
+            hwnd = ctypes.windll.user32.FindWindowW(None, "RECOVERY YOUTUBE")
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
 
 def hide_console():
     try:
@@ -66,7 +98,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.4"
+    VERSION = "1.0.0.5"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -156,7 +188,7 @@ class RecoveryYouTubeApp:
         self._exiting = True
         try:
             if self.working:
-                self.stop_bypass()
+                self.stop_bypass(user_stopped=True)
         except Exception:
             pass
         try:
@@ -305,7 +337,7 @@ class RecoveryYouTubeApp:
         self.stop_btn = tk.Button(
             self.root, text="ОСТАНОВИТЬ",
             font=("Arial", 14, "bold"),
-            command=self.stop_bypass,
+            command=lambda: self.stop_bypass(user_stopped=True),
             bg="#b33939", fg="white",
             activebackground="#cc0000", activeforeground="white",
             width=18, pady=6, cursor="hand2",
@@ -902,7 +934,7 @@ class RecoveryYouTubeApp:
                 pass
             self.xray_proc = None
 
-    def stop_bypass(self):
+    def stop_bypass(self, user_stopped=False):
         self.connected = False
         self.keepalive.clear()
         if self.timer_job:
@@ -915,7 +947,10 @@ class RecoveryYouTubeApp:
         self.run_btn.config(state="normal")
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Соединение остановлено")
-        self.maybe_exit_after_disconnect()
+        # автоматическое отключение (лимит времени, обрыв связи) при закрытом
+        # в трей окне завершает приложение; ручная кнопка «ОСТАНОВИТЬ» — никогда
+        if not user_stopped:
+            self.maybe_exit_after_disconnect()
 
     def _fail(self, msg):
         self.working = False
@@ -954,5 +989,9 @@ class RecoveryYouTubeApp:
 if __name__ == "__main__":
     if sys.platform == "win32":
         hide_console()
+    mutex = acquire_single_instance()
+    if mutex is None:
+        raise_existing_window()
+        sys.exit(0)
     app = RecoveryYouTubeApp()
     app.run()
