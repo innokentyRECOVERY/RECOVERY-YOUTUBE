@@ -10,4 +10,3 @@ xray.zip
 # временное
 build/
 dist/
-*.spec
