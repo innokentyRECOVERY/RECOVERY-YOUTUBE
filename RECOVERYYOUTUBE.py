@@ -98,7 +98,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.5"
+    VERSION = "1.0.0.6"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -120,6 +120,8 @@ class RecoveryYouTubeApp:
         self.keepalive = threading.Event()
         self.keepalive.clear()
         self.session_seconds = 2 * 60 * 60  # лимит одной сессии: 2 часа
+        self.proxy_fail_count = 0
+        self.proxy_ok = True
         self.folder_text = tk.StringVar(value="")
 
         self.work_dir = self.load_work_dir()
@@ -730,8 +732,16 @@ class RecoveryYouTubeApp:
         self.timer_text.set(self.session_label())
         self.set_status("Подключено (Англия). Проверяю связь с сервером...")
         self.update_stats()
-        threading.Thread(target=self.verify_proxy, daemon=True).start()
+
+        def _initial_check():
+            ok = self.verify_proxy()
+            if ok and self.connected:
+                self.root.after(
+                    0, lambda: self.set_status("Сервер Англия работает: YouTube доступен ✔"))
+
+        threading.Thread(target=_initial_check, daemon=True).start()
         threading.Thread(target=self._keepalive_loop, daemon=True).start()
+        threading.Thread(target=self._proxy_monitor, daemon=True).start()
 
     def session_label(self):
         if self.expire_ts and time.time() > self.expire_ts:
@@ -793,6 +803,33 @@ class RecoveryYouTubeApp:
         self.run_btn.config(state="normal")
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Не удалось восстановить соединение. Нажмите «ЗАПУСТИТЬ ОБХОД» заново")
+        self.maybe_exit_after_disconnect()
+
+    def _server_unreachable(self):
+        # xray-процесс жив, но YouTube через прокси не открывается —
+        # значит проблема на стороне сервера/подписки, а не локальная
+        self.connected = False
+        self.keepalive.clear()
+        if self.timer_job:
+            self.root.after_cancel(self.timer_job)
+            self.timer_job = None
+        if self.xray_alive():
+            self.kill_xray()
+        self.set_system_proxy(False)
+        self.working = False
+        self.stop_btn.config(state="disabled")
+        self.run_btn.config(state="normal")
+        self.timer_text.set("Осталось: 02:00:00")
+        self.set_status("Сервер не отвечает — отключён, подписка закончилась " 
+                        "(оплата/истекла) или возможен DDoS")
+        messagebox.showwarning(
+            "RECOVERY YOUTUBE",
+            "Сервер Англия не отвечает.\n\n"
+            "Возможные причины:\n"
+            "• подписка закончилась / не оплачена — введите новый код подписки;\n"
+            "• сервер временно отключён или перегружен (возможно DDoS-атака);\n"
+            "• изменились параметры доступа к серверу.\n\n"
+            "Попробуйте позже или введите новый код подписки.")
         self.maybe_exit_after_disconnect()
 
     def _subscription_expired(self):
@@ -921,10 +958,34 @@ class RecoveryYouTubeApp:
                 "https": f"http://{PROXY_HOST}:{PROXY_HTTP_PORT}",
             })
             opener = urllib.request.build_opener(proxy_handler)
-            opener.open("https://www.youtube.com/", timeout=15)
-            self.root.after(0, lambda: self.set_status("Сервер Англия работает: YouTube доступен ✔"))
+            opener.open("https://www.youtube.com/", timeout=12)
+            return True
         except Exception:
-            self.root.after(0, lambda: self.set_status("Туннель активен, но проверка без подтверждения"))
+            return False
+
+    def _proxy_monitor(self):
+        # фоновый контроль реальной доступности YouTube через прокси.
+        # Если xray жив, но YouTube через прокси не открывается — это сервер
+        # молчит (подписка/оплата/DDoS), а не локальная ошибка.
+        failed = 0
+        while self.keepalive.is_set() and self.connected:
+            time.sleep(25)
+            if not self.connected:
+                break
+            if not self.xray_alive():
+                continue
+            ok = self.verify_proxy()
+            if ok:
+                failed = 0
+                self.proxy_ok = True
+            else:
+                failed += 1
+                self.proxy_ok = False
+                if failed >= 3:
+                    self.root.after(0, self._server_unreachable)
+                    break
+        self.proxy_ok = True
+        self.proxy_fail_count = 0
 
     def kill_xray(self):
         if self.xray_proc:
