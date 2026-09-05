@@ -19,6 +19,13 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox
 
+try:
+    import pystray
+    import PIL.Image as PILImage
+    TRAY_AVAILABLE = True
+except Exception:
+    TRAY_AVAILABLE = False
+
 SUBSCRIPTION_URL = "https://hubcom.xyz/sub/1/45ad8f39-8935-4027-9504-173b75d30893"
 ENGLAND_FUSO_FLAG = "\u0410\u043d\u0433\u043b\u0438\u044f"
 ENG_FRAG = "\U0001F1EC\U0001F1E7"  # флаг 🇬🇧 (Англия/Великобритания)
@@ -59,7 +66,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.2"
+    VERSION = "1.0.0.3"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -87,8 +94,11 @@ class RecoveryYouTubeApp:
         self.ensure_work_dir()
         self.apply_work_dir()
 
+        self.tray_icon = None
+        self._exiting = False
         self.build_ui()
         self.center_window()
+        self.setup_tray()
 
     def center_window(self):
         self.root.update_idletasks()
@@ -96,6 +106,80 @@ class RecoveryYouTubeApp:
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+    # ---------------- системный трей ----------------
+
+    def tray_image(self):
+        try:
+            ico = os.path.join(APP_DIR, "app_icon.ico")
+            if not os.path.exists(ico):
+                ico = os.path.join(APP_DATA_DIR, "app_icon.ico")
+            if os.path.exists(ico):
+                return PILImage.open(ico).convert("RGBA").resize((64, 64))
+        except Exception:
+            pass
+        img = PILImage.new("RGBA", (64, 64), (26, 26, 46, 255))
+        return img
+
+    def setup_tray(self):
+        if not TRAY_AVAILABLE:
+            return
+        try:
+            menu = pystray.Menu(
+                pystray.MenuItem("Показать окно", self.show_window, default=True),
+                pystray.MenuItem("Выход", self.full_exit),
+            )
+            self.tray_icon = pystray.Icon(
+                "RECOVERY_YOUTUBE", self.tray_image(), "RECOVERY YOUTUBE", menu)
+        except Exception:
+            self.tray_icon = None
+
+    def ensure_tray_running(self):
+        if self.tray_icon is not None and not self._exiting:
+            try:
+                if not self.tray_icon.visible:
+                    self.tray_icon.run_detached()
+            except Exception:
+                pass
+
+    def show_window(self, icon=None, item=None):
+        self.root.after(0, self.root.deiconify)
+        self.root.after(0, self.root.lift)
+        self.root.after(0, self.root.focus_force)
+
+    def hide_to_tray(self):
+        self.root.withdraw()
+        self.ensure_tray_running()
+
+    def full_exit(self, icon=None, item=None):
+        self._exiting = True
+        try:
+            if self.working:
+                self.stop_bypass()
+        except Exception:
+            pass
+        try:
+            if self.tray_icon is not None:
+                self.tray_icon.stop()
+        except Exception:
+            pass
+        self.root.after(0, self._really_close)
+
+    def _really_close(self):
+        try:
+            if self.timer_job:
+                self.root.after_cancel(self.timer_job)
+            self.kill_xray()
+            self.set_system_proxy(False)
+        except Exception:
+            pass
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        # принудительно завершаем процесс: поток трея pystray не позволяет
+        # интерпретатору выйти самому
+        os._exit(0)
 
     # ---------------- работа с папкой xray ----------------
 
@@ -836,16 +920,12 @@ class RecoveryYouTubeApp:
         messagebox.showerror("RECOVERY YOUTUBE", f"Ошибка:\n{msg}")
 
     def on_close(self):
-        try:
-            if self.timer_job:
-                self.root.after_cancel(self.timer_job)
-            self.kill_xray()
-            self.set_system_proxy(False)
-        except Exception:
-            pass
-        self.root.destroy()
+        # кнопка «закрыть» (X) сворачивает приложение в системный трей —
+        # обход продолжает работать. Полный выход — только через меню трея «Выход».
+        self.hide_to_tray()
 
     def run(self):
+        self.ensure_tray_running()
         self.root.mainloop()
 
 
