@@ -8,6 +8,7 @@ import json
 import io
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -27,9 +28,10 @@ if getattr(sys, "frozen", False):
     APP_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_PATH = os.path.join(APP_DIR, "settings.json")
+APP_DATA_DIR = os.path.join(os.environ.get("APPDATA", APP_DIR), "RECOVERY_YOUTUBE")
+SETTINGS_PATH = os.path.join(APP_DATA_DIR, "settings.json")
 WORK_DIR_KEY = "work_dir"
-DEFAULT_WORK_DIR = APP_DIR
+DEFAULT_WORK_DIR = APP_DATA_DIR
 
 PROXY_HOST = "127.0.0.1"
 PROXY_HTTP_PORT = 10809
@@ -57,7 +59,7 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.0.1"
+    VERSION = "1.0.0.2"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -82,6 +84,7 @@ class RecoveryYouTubeApp:
         self.folder_text = tk.StringVar(value="")
 
         self.work_dir = self.load_work_dir()
+        self.ensure_work_dir()
         self.apply_work_dir()
 
         self.build_ui()
@@ -108,6 +111,16 @@ class RecoveryYouTubeApp:
             pass
         return DEFAULT_WORK_DIR
 
+    def ensure_work_dir(self):
+        try:
+            os.makedirs(self.work_dir, exist_ok=True)
+        except Exception:
+            self.work_dir = DEFAULT_WORK_DIR
+            try:
+                os.makedirs(self.work_dir, exist_ok=True)
+            except Exception:
+                pass
+
     def save_work_dir(self):
         try:
             with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
@@ -119,7 +132,23 @@ class RecoveryYouTubeApp:
         self.XRAY_DIR = self.work_dir
         self.XRAY_EXE = os.path.join(self.work_dir, "xray.exe")
         self.CONFIG_PATH = os.path.join(self.work_dir, "xray_config.json")
+        self.migrate_existing_xray()
         self.folder_text.set(self.work_dir)
+
+    def migrate_existing_xray(self):
+        # если xray лежит рядом с exe (старая схема), переносим в новую папку —
+        # чтобы не качать заново
+        try:
+            if os.path.exists(self.XRAY_EXE):
+                return
+            legacy = os.path.join(APP_DIR, "xray", "xray.exe")
+            if not os.path.exists(legacy):
+                legacy = os.path.join(APP_DIR, "xray.exe")
+            if os.path.exists(legacy):
+                os.makedirs(self.work_dir, exist_ok=True)
+                shutil.copy2(legacy, self.XRAY_EXE)
+        except Exception:
+            pass
 
     def pick_work_dir(self):
         from tkinter import filedialog
@@ -487,6 +516,9 @@ class RecoveryYouTubeApp:
     # ---------------- xray management ----------------
 
     def download_xray(self):
+        if os.path.exists(self.XRAY_EXE):
+            self.set_status("xray-core уже установлен")
+            return
         os.makedirs(self.XRAY_DIR, exist_ok=True)
         self.set_status("Скачивание xray-core...")
         zip_path = os.path.join(self.XRAY_DIR, "xray.zip")
