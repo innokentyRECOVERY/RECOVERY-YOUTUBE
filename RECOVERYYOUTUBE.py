@@ -57,9 +57,11 @@ def hide_console():
 
 
 class RecoveryYouTubeApp:
+    VERSION = "1.0.0.1"
+
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("RECOVERY YOUTUBE")
+        self.root.title(f"RECOVERY YOUTUBE v{self.VERSION}")
         self.root.configure(bg="#1a1a2e")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
