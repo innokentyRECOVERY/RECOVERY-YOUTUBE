@@ -497,31 +497,38 @@ class RecoveryYouTubeApp:
             self._set_btn(d, False)
         return d
 
-    def _add_round_btn(self, cx, cy, r, command, enabled=True, color="#4fc3f7"):
-        # круглая кнопка: окружность + иконка питания (⏻) вместо текста.
+    def _add_round_btn(self, cx, cy, r, command, label=None,
+                      enabled=True, color="#4fc3f7"):
+        # круглая кнопка: окружность + символ питания (маленький круг
+        # с вертикальной линией сверху). Необязательная подпись снизу.
         # Клики обрабатываются круговым хит-тестом (см. _on_canvas_click).
         outline_items = []
         fill_items = []
         oval = self.canvas.create_oval(
             cx - r, cy - r, cx + r, cy + r, outline=color, width=2, fill="")
         outline_items.append(oval)
-        # иконка питания: дуга окружности (разрыв сверху) + вертикальная линия
-        ir = r * 0.42
+        # символ питания: концентрическая окружность + линия сверху до центра
+        ir = r * 0.40
         w = max(2, int(r * 0.09))
-        arc = self.canvas.create_arc(
-            cx - ir, cy - ir, cx + ir, cy + ir,
-            start=30, extent=300, style="arc", outline=color, width=w)
-        outline_items.append(arc)
+        ring = self.canvas.create_oval(
+            cx - ir, cy - ir, cx + ir, cy + ir, outline=color, width=w, fill="")
+        outline_items.append(ring)
+        # линия начинается чуть выше окружности значка и доходит до его центра
         stem = self.canvas.create_line(
-            cx, cy - ir * 1.2, cx, cy + ir * 0.62,
+            cx, cy - ir * 1.15, cx, cy + ir * 0.0,
             fill=color, width=w)
         fill_items.append(stem)
+        txt = None
+        if label:
+            txt = self.canvas.create_text(
+                cx, cy + r + 16, text=label, fill="#ffffff",
+                font=("Arial", 10, "bold"))
         state = {"enabled": enabled}
         self._btns.append({"circle": (cx, cy, r),
                            "state": state, "command": command})
         d = {"oval": oval, "circle": (cx, cy, r), "state": state,
              "color": color, "outline_items": outline_items,
-             "fill_items": fill_items}
+             "fill_items": fill_items, "label": txt}
         if not enabled:
             self._set_btn(d, False)
         return d
@@ -630,10 +637,10 @@ class RecoveryYouTubeApp:
                                         font=("Arial", 14, "bold"), fill="#ffffff")
         self._attach_var(sv_it, self.server_text)
 
-        # кнопка ЗАПУСТИТЬ — круглая с иконкой питания; ОСТАНОВИТЬ — обычная
+        # кнопка ЗАПУСТИТЬ — круглая с символом питания; ОСТАНОВИТЬ — обычная
         self.run_btn = self._add_round_btn(
-            280, 202, 46, self.start_bypass,
-            enabled=True, color="#4fc3f7")
+            280, 198, 40, self.start_bypass,
+            label="ЗАПУСТИТЬ", enabled=True, color="#4fc3f7")
         self.stop_btn = self._add_btn(
             170, 262, 390, 304, "ОСТАНОВИТЬ",
             lambda: self.stop_bypass(user_stopped=True),
