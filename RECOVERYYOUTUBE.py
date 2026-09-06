@@ -639,10 +639,10 @@ class RecoveryYouTubeApp:
 
         # кнопка ЗАПУСТИТЬ — круглая с символом питания; ОСТАНОВИТЬ — обычная
         self.run_btn = self._add_round_btn(
-            280, 198, 40, self.start_bypass,
+            280, 212, 40, self.start_bypass,
             label="ЗАПУСТИТЬ", enabled=True, color="#4fc3f7")
         self.stop_btn = self._add_btn(
-            170, 262, 390, 304, "ОСТАНОВИТЬ",
+            170, 276, 390, 318, "ОСТАНОВИТЬ",
             lambda: self.stop_bypass(user_stopped=True),
             ("Arial", 14, "bold"), enabled=False, color="#b33939")
 
