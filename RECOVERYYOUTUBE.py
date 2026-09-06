@@ -211,7 +211,7 @@ _sanitize_tcl_tk_env()
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.2.2"
+    VERSION = "1.0.2.3"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -497,21 +497,68 @@ class RecoveryYouTubeApp:
             self._set_btn(d, False)
         return d
 
+    def _add_round_btn(self, cx, cy, r, command, enabled=True, color="#4fc3f7"):
+        # круглая кнопка: окружность + иконка питания (⏻) вместо текста.
+        # Клики обрабатываются круговым хит-тестом (см. _on_canvas_click).
+        outline_items = []
+        fill_items = []
+        oval = self.canvas.create_oval(
+            cx - r, cy - r, cx + r, cy + r, outline=color, width=2, fill="")
+        outline_items.append(oval)
+        # иконка питания: дуга окружности (разрыв сверху) + вертикальная линия
+        ir = r * 0.42
+        w = max(2, int(r * 0.09))
+        arc = self.canvas.create_arc(
+            cx - ir, cy - ir, cx + ir, cy + ir,
+            start=30, extent=300, style="arc", outline=color, width=w)
+        outline_items.append(arc)
+        stem = self.canvas.create_line(
+            cx, cy - ir * 1.2, cx, cy + ir * 0.62,
+            fill=color, width=w)
+        fill_items.append(stem)
+        state = {"enabled": enabled}
+        self._btns.append({"circle": (cx, cy, r),
+                           "state": state, "command": command})
+        d = {"oval": oval, "circle": (cx, cy, r), "state": state,
+             "color": color, "outline_items": outline_items,
+             "fill_items": fill_items}
+        if not enabled:
+            self._set_btn(d, False)
+        return d
+
     def _on_canvas_click(self, e):
         # хит-тест: клик срабатывает по всей площади кнопки, даже если в
         # прозрачной области внутри контура (там нет текста/заливки)
         x, y = e.x, e.y
         for b in self._btns:
-            if b["state"]["enabled"] and b["x1"] <= x <= b["x2"] and b["y1"] <= y <= b["y2"]:
-                if b["command"]:
+            if not b["state"]["enabled"] or not b["command"]:
+                continue
+            if "circle" in b:
+                cx, cy, r = b["circle"]
+                if (x - cx) ** 2 + (y - cy) ** 2 <= r * r:
                     b["command"]()
+                    break
+            elif b["x1"] <= x <= b["x2"] and b["y1"] <= y <= b["y2"]:
+                b["command"]()
                 break
 
     def _set_btn(self, d, enabled):
         d["state"]["enabled"] = enabled
         col = d.get("color", "#4fc3f7") if enabled else "#666666"
-        self.canvas.itemconfig(d["rect"], outline=col)
-        self.canvas.itemconfig(d["text"], fill="#ffffff")
+        for it in d.get("outline_items", []):
+            try:
+                self.canvas.itemconfig(it, outline=col)
+            except Exception:
+                pass
+        for it in d.get("fill_items", []):
+            try:
+                self.canvas.itemconfig(it, fill=col)
+            except Exception:
+                pass
+        if "rect" in d and d.get("rect"):
+            self.canvas.itemconfig(d["rect"], outline=col)
+        if d.get("text"):
+            self.canvas.itemconfig(d["text"], fill="#ffffff")
 
     def _set_tab_active(self, mode, active):
         d = self.tab_items.get(mode)
@@ -583,12 +630,12 @@ class RecoveryYouTubeApp:
                                         font=("Arial", 14, "bold"), fill="#ffffff")
         self._attach_var(sv_it, self.server_text)
 
-        # кнопки ЗАПУСТИТЬ / ОСТАНОВИТЬ (прозрачные, контур + текст)
-        self.run_btn = self._add_btn(
-            120, 180, 440, 234, "ЗАПУСТИТЬ ОБХОД", self.start_bypass,
-            ("Arial", 16, "bold"), enabled=True, color="#4fc3f7")
+        # кнопка ЗАПУСТИТЬ — круглая с иконкой питания; ОСТАНОВИТЬ — обычная
+        self.run_btn = self._add_round_btn(
+            280, 202, 46, self.start_bypass,
+            enabled=True, color="#4fc3f7")
         self.stop_btn = self._add_btn(
-            160, 248, 400, 292, "ОСТАНОВИТЬ",
+            170, 262, 390, 304, "ОСТАНОВИТЬ",
             lambda: self.stop_bypass(user_stopped=True),
             ("Arial", 14, "bold"), enabled=False, color="#b33939")
 
