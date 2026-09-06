@@ -99,6 +99,13 @@ DOLLAR_B64 = (
 
 DOLLAR_IMAGE_BYTES = base64.b64decode(DOLLAR_B64)
 
+# Встроенное фоновое изображение (spokoynich.jpg) — фон работает даже без файла рядом с exe
+try:
+    from bg_embedded_data import BG_IMAGE_BASE64
+    EMBEDDED_BACKGROUND_BYTES = base64.b64decode("".join(BG_IMAGE_BASE64))
+except Exception:
+    EMBEDDED_BACKGROUND_BYTES = b""
+
 # возможные имена файлов фона рядом с exe (первый найденный используется)
 BACKGROUND_CANDIDATES = (
     "spokoynich.jpg", "спокойнич.jpg",
@@ -444,6 +451,18 @@ class RecoveryYouTubeApp:
                         return photo
                 except Exception:
                     continue
+        # если файла рядом нет — используем встроенный фон (base64 в exe)
+        if EMBEDDED_BACKGROUND_BYTES:
+            try:
+                img = PILImage.open(io.BytesIO(EMBEDDED_BACKGROUND_BYTES)).convert(
+                    "RGB").resize((560, 680), PILImage.LANCZOS)
+                dim = PILImage.new("RGB", img.size, (10, 10, 20))
+                img = PILImage.blend(img, dim, 0.55)
+                photo = PILImageTk.PhotoImage(img)
+                self._bg_photo = photo  # не даём GC удалить фото
+                return photo
+            except Exception:
+                pass
         return None
 
     def _dollar_photo(self, size=26):
