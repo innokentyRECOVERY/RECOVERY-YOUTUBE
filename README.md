@@ -13,7 +13,7 @@ Unblock YouTube and Telegram via VLESS subscription (split-tunnel: only the chos
 
 ## Установка на телефон (Android)
 
-1. Скачайте `RECOVERY_YOUTUBE.apk` из [Releases](https://github.com/innokentyRECOVERY/RECOVERY-YOUTUBE/releases) (актуальная версия **v2.0.0.3**).
+1. Скачайте `RECOVERY_YOUTUBE.apk` из [Releases](https://github.com/innokentyRECOVERY/RECOVERY-YOUTUBE/releases) (актуальная версия **v2.0.0.4**).
 2. Установите APK (разрешите установку из неизвестных источников).
 3. Откройте приложение и нажмите кружок с символом питания — при первом запуске Android спросит разрешение на VPN, нажмите «ОК».
 4. Через VPN пойдут только YouTube и Telegram, остальной интернет — напрямую. Лимит сессии — 2 часа.
@@ -47,6 +47,7 @@ Unblock YouTube and Telegram via VLESS subscription (split-tunnel: only the chos
 
 | Версия | Что изменилось |
 |--------|----------------|
+| **v2.0.0.4** | Android 1.0.2.5: исправлен повторный запрос разрешения VPN после первого подтверждения (выдавался второй системный диалог не открываясь, соединение не поднималось). Защита от двойного `prepare()`, пошаговые статусы запуска и лог этапов в «Прошлом сбое» для точной диагностики. versionCode 5. |
 | **v2.0.0.3** | Android 1.0.2.4: исправлен вылет сразу при нажатии «включить» на Android 14+ (`MissingForegroundServiceTypeException`) — добавлен `foregroundServiceType="dataSync"` и permission `FOREGROUND_SERVICE_DATA_SYNC`, иконка уведомления перенесена на отдельный drawable, `startForeground` обёрнут в try/catch. versionCode 4. |
 | **v2.0.0.2** | ПК-сборка 1.0.2.4: кнопка питания теперь использует точные изображения круглых кнопок из макета (красный кружок = выкл, зелёный = вкл), кнопка крупнее и с более тёмной обводкой. Одна кнопка-переключатель вместо двух («ЗАПУСТИТЬ» + «ОСТАНОВИТЬ»). |
 | **v2.0.0.1** | Исправление Android-сборки: убран `BIND_VPN_SERVICE` permission (краш при нажатии кружка), `tun2socks` пересобран под android/arm64 (старый был glibc-бинарь и не мог работать на Android), добавлен перехватчик крашей с показом ошибки на экране. |
