@@ -1,27 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
-import sys
 
-# хвост от предыдущего .exe: PyInstaller считает tkinter сломанным и не кладёт его в сборку
-for key in ("TCL_LIBRARY", "TK_LIBRARY", "TCLLIBPATH"):
-    val = os.environ.get(key, "")
-    if (not val) or ("_MEI" in val.replace("\\", "/")) or (not os.path.isdir(val)):
-        os.environ.pop(key, None)
-
-_prefix = getattr(sys, "base_prefix", sys.prefix)
-_tcl = os.path.join(_prefix, "tcl", "tcl8.6")
-_tk = os.path.join(_prefix, "tcl", "tk8.6")
-if os.path.isdir(_tcl):
-    os.environ["TCL_LIBRARY"] = _tcl
-if os.path.isdir(_tk):
-    os.environ["TK_LIBRARY"] = _tk
 
 a = Analysis(
     ['G:/AAARECOVERY/RECOVERYYOUTUBE.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=["tkinter", "tkinter.messagebox", "tkinter.filedialog"],
+    hiddenimports=['numpy'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

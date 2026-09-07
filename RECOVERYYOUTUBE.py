@@ -99,6 +99,15 @@ DOLLAR_B64 = (
 
 DOLLAR_IMAGE_BYTES = base64.b64decode(DOLLAR_B64)
 
+# Кнопки питания (выкл/вкл) — вырезаны из photos.jpg пользователя, встроены base64
+try:
+    from buttons_data import BTN_OFF_B64, BTN_ON_B64
+    BTN_OFF_BYTES = base64.b64decode("".join(BTN_OFF_B64))
+    BTN_ON_BYTES = base64.b64decode("".join(BTN_ON_B64))
+except Exception:
+    BTN_OFF_BYTES = b""
+    BTN_ON_BYTES = b""
+
 # Встроенное фоновое изображение (spokoynich.jpg) — фон работает даже без файла рядом с exe
 try:
     from bg_embedded_data import BG_IMAGE_BASE64
@@ -211,7 +220,7 @@ _sanitize_tcl_tk_env()
 
 
 class RecoveryYouTubeApp:
-    VERSION = "1.0.2.3"
+    VERSION = "1.0.2.4"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -497,41 +506,67 @@ class RecoveryYouTubeApp:
             self._set_btn(d, False)
         return d
 
-    def _add_round_btn(self, cx, cy, r, command, label=None,
-                      enabled=True, color="#4fc3f7"):
-        # круглая кнопка: окружность + символ питания (маленький круг
-        # с вертикальной линией сверху). Необязательная подпись снизу.
-        # Клики обрабатываются круговым хит-тестом (см. _on_canvas_click).
-        outline_items = []
-        fill_items = []
-        oval = self.canvas.create_oval(
-            cx - r, cy - r, cx + r, cy + r, outline=color, width=2, fill="")
-        outline_items.append(oval)
-        # символ питания: концентрическая окружность + линия сверху до центра
-        ir = r * 0.40
-        w = max(2, int(r * 0.09))
-        ring = self.canvas.create_oval(
-            cx - ir, cy - ir, cx + ir, cy + ir, outline=color, width=w, fill="")
-        outline_items.append(ring)
-        # линия начинается чуть выше окружности значка и доходит до его центра
-        stem = self.canvas.create_line(
-            cx, cy - ir * 1.15, cx, cy + ir * 0.0,
-            fill=color, width=w)
-        fill_items.append(stem)
-        txt = None
-        if label:
-            txt = self.canvas.create_text(
-                cx, cy + r + 16, text=label, fill="#ffffff",
-                font=("Arial", 10, "bold"))
+    def _load_power_btn_images(self, size=112):
+        # картинки кнопки питания (выкл/вкл) из встроенных данных
+        data = {"off": BTN_OFF_BYTES, "on": BTN_ON_BYTES}
+        imgs = {}
+        for key, raw in data.items():
+            try:
+                img = PILImage.open(io.BytesIO(raw)).convert("RGBA").resize(
+                    (size, size), PILImage.LANCZOS)
+                img = self._darken_ring(img, 0.62)
+                imgs[key] = PILImageTk.PhotoImage(img)
+            except Exception:
+                try:
+                    # запасной вариант: нарисованная простая кнопка
+                    img = PILImage.new("RGBA", (size, size), (0, 0, 0, 0))
+                    import PIL.ImageDraw as PILDraw
+                    dr = PILDraw.Draw(img)
+                    col = (180, 230, 140, 255) if key == "on" else (190, 70, 70, 255)
+                    dr.ellipse([4, 4, size - 4, size - 4], fill=col, outline=(255, 255, 255, 255), width=3)
+                    imgs[key] = PILImageTk.PhotoImage(img)
+                except Exception:
+                    imgs[key] = None
+        self.btn_off_img = imgs["off"]
+        self.btn_on_img = imgs["on"]
+        self._btn_img_refs = (self.btn_off_img, self.btn_on_img)
+
+    @staticmethod
+    def _darken_ring(img, factor):
+        # затемняет кольцо по внешнему краю кружка (обводка)
+        import numpy as _np
+        a = _np.asarray(img).copy()
+        h, w = a.shape[:2]
+        y, x = _np.mgrid[0:h, 0:w]
+        cx, cy = w / 2.0, h / 2.0
+        r = _np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+        r_out = min(w, h) / 2.0 - 1
+        r_in = r_out - 7
+        mask = (r >= r_in) & (r <= r_out) & (a[:, :, 3] > 0)
+        a[mask, 0] = (a[mask, 0] * factor).astype(_np.uint8)
+        a[mask, 1] = (a[mask, 1] * factor).astype(_np.uint8)
+        a[mask, 2] = (a[mask, 2] * factor).astype(_np.uint8)
+        return PILImage.fromarray(a)
+
+    def _add_image_btn(self, cx, cy, img, command, size=90, enabled=True):
+        # кнопка-картинка (PNG с прозрачностью): клики по всей площади
+        place = self.canvas.create_image(cx, cy, image=img, anchor="center")
+        h = size / 2
         state = {"enabled": enabled}
-        self._btns.append({"circle": (cx, cy, r),
-                           "state": state, "command": command})
-        d = {"oval": oval, "circle": (cx, cy, r), "state": state,
-             "color": color, "outline_items": outline_items,
-             "fill_items": fill_items, "label": txt}
-        if not enabled:
-            self._set_btn(d, False)
-        return d
+        self._btns.append({"x1": cx - h, "y1": cy - h, "x2": cx + h,
+                           "y2": cy + h, "state": state, "command": command})
+        return {"img": place, "state": state, "x1": cx - h, "y1": cy - h,
+                "x2": cx + h, "y2": cy + h}
+
+    def _set_power_img(self, on):
+        # переключает картинку кнопки: выкл = красный (off), вкл = зелёный (on)
+        if self.run_btn and self.run_btn.get("img"):
+            img = self.btn_on_img if on else self.btn_off_img
+            if img is not None:
+                try:
+                    self.canvas.itemconfig(self.run_btn["img"], image=img)
+                except Exception:
+                    pass
 
     def _on_canvas_click(self, e):
         # хит-тест: клик срабатывает по всей площади кнопки, даже если в
@@ -549,12 +584,14 @@ class RecoveryYouTubeApp:
                 b["command"]()
                 break
 
-    def _set_btn(self, d, enabled):
+    def _set_btn(self, d, enabled, color=None):
         d["state"]["enabled"] = enabled
-        col = d.get("color", "#4fc3f7") if enabled else "#666666"
+        col = color if color else (d.get("color", "#4fc3f7") if enabled else "#666666")
         for it in d.get("outline_items", []):
             try:
                 self.canvas.itemconfig(it, outline=col)
+                if d.get("bold_fill"):
+                    self.canvas.itemconfig(it, fill=col)
             except Exception:
                 pass
         for it in d.get("fill_items", []):
@@ -578,6 +615,7 @@ class RecoveryYouTubeApp:
 
     BLUE = "#4fc3f7"
     RED = "#e94560"
+    GREEN = "#78e08f"
 
     def build_ui(self):
         # единый canvas: фон-картинка + все элементы (прозрачные кнопки)
@@ -637,14 +675,13 @@ class RecoveryYouTubeApp:
                                         font=("Arial", 14, "bold"), fill="#ffffff")
         self._attach_var(sv_it, self.server_text)
 
-        # кнопка ЗАПУСТИТЬ — круглая с символом питания; ОСТАНОВИТЬ — обычная
-        self.run_btn = self._add_round_btn(
-            280, 212, 40, self.start_bypass,
-            label="ЗАПУСТИТЬ", enabled=True, color="#4fc3f7")
-        self.stop_btn = self._add_btn(
-            170, 276, 390, 318, "ОСТАНОВИТЬ",
-            lambda: self.stop_bypass(user_stopped=True),
-            ("Arial", 14, "bold"), enabled=False, color="#b33939")
+        # единственная кнопка питания — изображение, вырезанное из фото:
+        # выкл = красный кружок, вкл = зелёный кружок (с триггером нажатия)
+        self.btn_off_img = None
+        self.btn_on_img = None
+        self._load_power_btn_images()
+        self.run_btn = self._add_image_btn(
+            280, 224, self.btn_off_img, self.toggle_power, size=112)
 
         # статус
         st_it = self.canvas.create_text(280, 322, text=self.status_text.get(),
@@ -987,11 +1024,24 @@ class RecoveryYouTubeApp:
     def set_status(self, text):
         self.status_text.set(text)
 
+    def toggle_power(self):
+        # одна кнопка: выключена (красная) -> запуск, включена (зелёная) -> стоп
+        if self.working:
+            return
+        if self.connected:
+            self.stop_bypass(user_stopped=True)
+        else:
+            self.start_bypass()
+
+    def _set_power(self, on):
+        # меняем картинку кнопки: вкл = зелёный кружок, выкл = красный
+        self._set_power_img(on)
+        self._set_btn(self.run_btn, True)
+
     def start_bypass(self):
         if self.working or self.connected:
             return
         self.working = True
-        self._set_btn(self.run_btn, False)
         threading.Thread(target=self._start_worker, daemon=True).start()
 
     def _start_worker(self):
@@ -1031,7 +1081,7 @@ class RecoveryYouTubeApp:
 
     def _started_ui(self):
         self.working = False
-        self._set_btn(self.stop_btn, True)
+        self._set_power(True)
         self.session_seconds = 2 * 60 * 60
         self.timer_text.set(self.session_label())
         self.set_status("Подключено (Англия). Проверяю связь с сервером...")
@@ -1103,10 +1153,9 @@ class RecoveryYouTubeApp:
         if self.xray_alive():
             self.kill_xray()
         self.set_system_proxy(False)
-        self._set_btn(self.stop_btn, False)
-        self._set_btn(self.run_btn, True)
+        self._set_power(False)
         self.timer_text.set("Осталось: 02:00:00")
-        self.set_status("Не удалось восстановить соединение. Нажмите «ЗАПУСТИТЬ ОБХОД» заново")
+        self.set_status("Не удалось восстановить соединение. Нажмите кнопку запуска заново")
         self.maybe_exit_after_disconnect()
 
     def _server_unreachable(self):
@@ -1121,8 +1170,7 @@ class RecoveryYouTubeApp:
             self.kill_xray()
         self.set_system_proxy(False)
         self.working = False
-        self._set_btn(self.stop_btn, False)
-        self._set_btn(self.run_btn, True)
+        self._set_power(False)
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Сервер не отвечает — отключён, подписка закончилась " 
                         "(оплата/истекла) или возможен DDoS")
@@ -1142,8 +1190,7 @@ class RecoveryYouTubeApp:
         if self.xray_alive():
             self.kill_xray()
         self.set_system_proxy(False)
-        self._set_btn(self.stop_btn, False)
-        self._set_btn(self.run_btn, True)
+        self._set_power(False)
         self.code_entry.config(state="normal")
         self._set_btn(self.apply_btn, True)
         self.timer_text.set("Подписка истекла — жду новый код")
@@ -1308,8 +1355,7 @@ class RecoveryYouTubeApp:
         if self.xray_alive():
             self.kill_xray()
         self.set_system_proxy(False)
-        self._set_btn(self.stop_btn, False)
-        self._set_btn(self.run_btn, True)
+        self._set_power(False)
         self.timer_text.set("Осталось: 02:00:00")
         self.set_status("Соединение остановлено")
         # автоматическое отключение (лимит времени, обрыв связи) при закрытом
@@ -1319,7 +1365,7 @@ class RecoveryYouTubeApp:
 
     def _fail(self, msg):
         self.working = False
-        self._set_btn(self.run_btn, True)
+        self._set_power(False)
         self.set_status("Ошибка: " + msg)
         self.maybe_exit_after_disconnect()
         if not self._exiting:
